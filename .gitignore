@@ -1,0 +1,28 @@
+# Binaries for programs and plugins
+*.exe
+*.darwin
+*.linux
+*.windows
+
+# Test binary, generated with `go test -c`
+*.test
+
+# Output of the go toolchain when building code.
+# See https://golang.org/issue/26189
+# for why this is not enabled by default.
+!build/
+build/
+
+# IDE files
+.vscode/
+.idea/
+
+# Editor backup files
+*~
+*.bak
+*.swp
+
+# Project-specific ignores
+server.log
+server.pid
+browser-server

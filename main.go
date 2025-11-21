@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"os"
 	"time"
 
 	"browser-server/proxy"
@@ -49,6 +50,13 @@ func main() {
 	log.Fatal(http.ListenAndServe(port, r))
 }
 
+func resolveHost(r *http.Request) string {
+	if host := os.Getenv("APP_HOST"); host != "" {
+		return host
+	}
+	return r.Host
+}
+
 func createSessionHandler(w http.ResponseWriter, r *http.Request) {
 	var req CreateSessionRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -66,7 +74,7 @@ func createSessionHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	host := r.Host
+	host := resolveHost(r)
 	resp := SessionResponse{
 		ID:         sess.ID,
 		CDPURL:     fmt.Sprintf("ws://%s/sessions/%s/cdp", host, sess.ID),
@@ -81,7 +89,7 @@ func createSessionHandler(w http.ResponseWriter, r *http.Request) {
 
 func listSessionsHandler(w http.ResponseWriter, r *http.Request) {
 	sessions := sessionManager.ListSessions()
-	host := r.Host
+	host := resolveHost(r)
 	
 	resp := make([]SessionResponse, 0)
 	for _, s := range sessions {

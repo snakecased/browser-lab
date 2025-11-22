@@ -5,9 +5,10 @@
 
 APP_NAME="browser-lab"
 BINARY_NAME="browser-server"
-APP_PID_FILE="$APP_NAME.pid"
-FUNNEL_PID_FILE="$APP_NAME-funnel.pid"
-LOG_DIR="logs"
+RUNTIME_DIR="runtime"
+APP_PID_FILE="$RUNTIME_DIR/$APP_NAME.pid"
+FUNNEL_PID_FILE="$RUNTIME_DIR/$APP_NAME-funnel.pid"
+LOG_DIR="$RUNTIME_DIR/logs"
 LOG_FILE="$LOG_DIR/$APP_NAME.log"
 FUNNEL_LOG_FILE="$LOG_DIR/$APP_NAME-funnel.log"
 TAILSCALE_HOST="shanur-pc.tailbe68d6.ts.net"
@@ -24,8 +25,12 @@ build_app() {
     fi
 }
 
-# Function to ensure logs directory exists
-ensure_log_dir() {
+# Function to ensure runtime directories exist
+ensure_runtime_dirs() {
+    if [ ! -d "$RUNTIME_DIR" ]; then
+        mkdir -p "$RUNTIME_DIR"
+        echo "Created runtime directory: $RUNTIME_DIR"
+    fi
     if [ ! -d "$LOG_DIR" ]; then
         mkdir -p "$LOG_DIR"
         echo "Created logs directory: $LOG_DIR"
@@ -55,7 +60,7 @@ start_app() {
     echo "Starting $APP_NAME..."
     
     # Ensure logs directory exists
-    ensure_log_dir
+    ensure_runtime_dirs
     
     # Build first
     if ! build_app; then
@@ -104,7 +109,7 @@ start_funnel() {
     echo "Starting Tailscale Funnel..."
     
     # Ensure logs directory exists
-    ensure_log_dir
+    ensure_runtime_dirs
     
     # Start funnel in background with logs
     sudo tailscale funnel --https=8443 localhost:8080 > "$FUNNEL_LOG_FILE" 2>&1 &
@@ -349,7 +354,7 @@ case "$1" in
     cleanup)
         echo "Cleaning up all browser-server processes and PID files..."
         stop_all
-        rm -f *.pid
+        rm -f "$RUNTIME_DIR"/*.pid
         echo "Cleanup complete"
         ;;
     *)

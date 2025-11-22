@@ -27,7 +27,7 @@ server.log
 server.pid
 browser-server
 
-# Log files and directories
-logs/
+# Runtime files and directories
+runtime/
 *.log
 *.pid

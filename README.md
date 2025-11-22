@@ -71,6 +71,23 @@ From the dashboard, you can:
 *   Stop existing sessions.
 *   Access the Chrome DevTools Protocol (CDP) URL for advanced debugging.
 
+### Running Tests
+
+The project includes integration tests that verify the server's functionality, including session creation, CDP connectivity, and automated browser actions.
+
+To run the tests:
+
+```bash
+go test -v ./test
+```
+
+This will:
+1.  Build and start a temporary instance of the server.
+2.  Create a new browser session.
+3.  Connect to the session using the Chrome DevTools Protocol (CDP).
+4.  Navigate to a website (Wikipedia), scroll, and move the mouse to simulate user activity.
+5.  Clean up the session and server instance.
+
 ## Project Structure
 
 *   `main.go`: Main server logic, API endpoints, and session management.
@@ -79,6 +96,7 @@ From the dashboard, you can:
 *   `session/session.go`: Defines a single browser session, including launching Chrome.
 *   `proxy/proxy.go`: Handles CDP proxying.
 *   `dashboard/index.html`: The web-based admin interface.
+*   `test/`: Contains integration tests.
 
 ## Development Notes
 

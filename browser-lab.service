@@ -1,0 +1,17 @@
+[Unit]
+Description=Browser Lab - Headless Browser Server
+After=network.target
+
+[Service]
+Type=simple
+User=shanur
+WorkingDirectory=/home/shanur/Documents/personal/browser-lab
+ExecStart=/home/shanur/Documents/personal/browser-lab/browser-server
+Restart=always
+RestartSec=5
+Environment=APP_HOST=shanur-pc.tailbe68d6.ts.net:8443
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

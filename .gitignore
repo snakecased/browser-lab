@@ -26,3 +26,8 @@ build/
 server.log
 server.pid
 browser-server
+
+# Log files and directories
+logs/
+*.log
+*.pid

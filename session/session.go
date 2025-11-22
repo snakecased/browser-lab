@@ -32,14 +32,10 @@ func NewSession(duration time.Duration) (*Session, error) {
 	id := uuid.New().String()
 	ctx, cancel := context.WithCancel(context.Background())
 
-	// Find Chrome executable
-	chromePath := "google-chrome"
-	if _, err := exec.LookPath(chromePath); err != nil {
-		// Try macOS path
-		macPath := "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
-		if _, err := os.Stat(macPath); err == nil {
-			chromePath = macPath
-		}
+	chromePath, err := findBrowserExecutable()
+	if err != nil {
+		cancel()
+		return nil, fmt.Errorf("failed to find browser executable: %w", err)
 	}
 
 	cmd := exec.CommandContext(ctx, chromePath,
@@ -142,4 +138,28 @@ func parseDevToolsURL(r io.Reader) (string, error) {
 	case <-timeout:
 		return "", fmt.Errorf("timeout waiting for devtools url")
 	}
+}
+
+func findBrowserExecutable() (string, error) {
+	// Preferred order for Linux/Windows
+	executables := []string{"chromium", "google-chrome", "brave"}
+	for _, browser := range executables {
+		if path, err := exec.LookPath(browser); err == nil {
+			return path, nil
+		}
+	}
+
+	// Preferred order for macOS specific paths
+	macPaths := []string{
+		"/Applications/Chromium.app/Contents/MacOS/Chromium",
+		"/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
+		"/Applications/Brave Browser.app/Contents/MacOS/Brave Browser",
+	}
+	for _, macPath := range macPaths {
+		if _, err := os.Stat(macPath); err == nil {
+			return macPath, nil
+		}
+	}
+
+	return "", fmt.Errorf("no supported browser executable found in PATH or standard macOS locations. Please install chromium, google-chrome, or brave")
 }

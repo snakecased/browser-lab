@@ -154,7 +154,7 @@ func whipHandler(w http.ResponseWriter, r *http.Request) {
 	select {
 	case <-webrtc.GatheringCompletePromise(peerConnection):
 		log.Printf("WHIP: ICE gathering complete for resource %s", resourceID)
-	case <-time.After(3 * time.Second):
+	case <-time.After(10 * time.Second):
 		log.Printf("WHIP: ICE gathering timed out for resource %s, proceeding", resourceID)
 	}
 
@@ -392,7 +392,7 @@ func streamScreencastToDataChannel(sess interface{ GetWSURL() string }, dc *webr
 			}
 
 			// Chunk and send binary data
-			const chunkSize = 60000 // Safe under 64KB limit
+			const chunkSize = 16384 // Safe chunk size (16KB)
 			for i := 0; i < len(data); i += chunkSize {
 				end := i + chunkSize
 				if end > len(data) {

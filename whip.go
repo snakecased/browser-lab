@@ -77,6 +77,9 @@ func whipHandler(w http.ResponseWriter, r *http.Request) {
 			{
 				URLs: []string{"stun:stun.l.google.com:19302"},
 			},
+			{
+				URLs: []string{"stun:stun.cloudflare.com:3478"},
+			},
 		},
 	}
 

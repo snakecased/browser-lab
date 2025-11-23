@@ -39,8 +39,10 @@ func main() {
 
 	// Proxy & Preview
 	r.HandleFunc("/sessions/{id}/cdp", cdpProxyHandler)
-	// r.HandleFunc("/sessions/{id}/preview", previewHandler) // Deprecated for WebRTC
-	r.HandleFunc("/sessions/{id}/webrtc/offer", webrtcOfferHandler).Methods("POST")
+
+	// WHIP (WebRTC-HTTP Ingestion Protocol) endpoints
+	r.HandleFunc("/sessions/{id}/whip", whipHandler).Methods("POST")
+	r.HandleFunc("/sessions/{id}/whip/{resourceId}", whipResourceHandler).Methods("PATCH", "DELETE")
 
 	// Static files for dashboard
 	r.PathPrefix("/").Handler(http.FileServer(http.Dir("./dashboard")))
@@ -55,6 +57,34 @@ func resolveHost(r *http.Request) string {
 		return host
 	}
 	return r.Host
+}
+
+// resolveScheme determines if the request came over HTTPS or HTTP
+func resolveScheme(r *http.Request) string {
+	// Check X-Forwarded-Proto header (set by reverse proxies like Tailscale Funnel)
+	if proto := r.Header.Get("X-Forwarded-Proto"); proto != "" {
+		return proto
+	}
+
+	// Check if TLS is being used
+	if r.TLS != nil {
+		return "https"
+	}
+
+	// Check if APP_HOST is set (indicates Tailscale Funnel usage)
+	if os.Getenv("APP_HOST") != "" {
+		return "https"
+	}
+
+	return "http"
+}
+
+// resolveWSScheme returns the WebSocket scheme (ws or wss)
+func resolveWSScheme(r *http.Request) string {
+	if resolveScheme(r) == "https" {
+		return "wss"
+	}
+	return "ws"
 }
 
 func createSessionHandler(w http.ResponseWriter, r *http.Request) {
@@ -75,10 +105,13 @@ func createSessionHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	host := resolveHost(r)
+	scheme := resolveScheme(r)
+	wsScheme := resolveWSScheme(r)
+
 	resp := SessionResponse{
 		ID:         sess.ID,
-		CDPURL:     fmt.Sprintf("ws://%s/sessions/%s/cdp", host, sess.ID),
-		PreviewURL: fmt.Sprintf("http://%s/sessions/%s/preview", host, sess.ID),
+		CDPURL:     fmt.Sprintf("%s://%s/sessions/%s/cdp", wsScheme, host, sess.ID),
+		PreviewURL: fmt.Sprintf("%s://%s/sessions/%s/preview", scheme, host, sess.ID),
 		CreatedAt:  sess.CreatedAt,
 		ExpiresAt:  sess.ExpiresAt,
 	}
@@ -90,13 +123,15 @@ func createSessionHandler(w http.ResponseWriter, r *http.Request) {
 func listSessionsHandler(w http.ResponseWriter, r *http.Request) {
 	sessions := sessionManager.ListSessions()
 	host := resolveHost(r)
-	
+	scheme := resolveScheme(r)
+	wsScheme := resolveWSScheme(r)
+
 	resp := make([]SessionResponse, 0)
 	for _, s := range sessions {
 		resp = append(resp, SessionResponse{
 			ID:         s.ID,
-			CDPURL:     fmt.Sprintf("ws://%s/sessions/%s/cdp", host, s.ID),
-			PreviewURL: fmt.Sprintf("http://%s/sessions/%s/preview", host, s.ID),
+			CDPURL:     fmt.Sprintf("%s://%s/sessions/%s/cdp", wsScheme, host, s.ID),
+			PreviewURL: fmt.Sprintf("%s://%s/sessions/%s/preview", scheme, host, s.ID),
 			CreatedAt:  s.CreatedAt,
 			ExpiresAt:  s.ExpiresAt,
 		})

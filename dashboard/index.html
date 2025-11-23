@@ -51,7 +51,7 @@
                 <th>Created At</th>
                 <th>Expires At</th>
                 <th>Actions</th>
-                <th>Preview (WebRTC)</th>
+                <th>Preview (WHIP)</th>
             </tr>
         </thead>
         <tbody></tbody>
@@ -99,16 +99,30 @@
         }
 
         async function stopSession(id) {
-            await fetch(`/sessions/${id}`, { method: 'DELETE' });
+            // Terminate WHIP session if active (per WHIP protocol)
+            if (window.whipResources && window.whipResources[id]) {
+                try {
+                    await fetch(window.whipResources[id], { method: 'DELETE' });
+                    console.log('WHIP: Terminated resource:', window.whipResources[id]);
+                    delete window.whipResources[id];
+                } catch (err) {
+                    console.error('WHIP: Failed to terminate resource:', err);
+                }
+            }
+            
+            // Close peer connection
             if (peerConnections[id]) {
                 peerConnections[id].close();
                 delete peerConnections[id];
             }
+            
+            // Delete browser session
+            await fetch(`/sessions/${id}`, { method: 'DELETE' });
             loadSessions();
         }
 
         async function startWebRTC(sessionId) {
-            console.log('Starting WebRTC for session:', sessionId);
+            console.log('Starting WHIP session for:', sessionId);
             if (peerConnections[sessionId]) {
                 console.log('Peer connection already exists');
                 return;
@@ -121,7 +135,7 @@
 
             // Create Data Channel (Client initiates)
             const dc = pc.createDataChannel('screencast');
-            dc.onopen = () => console.log('Data channel opened');
+            dc.onopen = () => console.log('WHIP: Data channel opened');
             dc.onmessage = (e) => {
                 if (typeof e.data === 'string') {
                     const msg = JSON.parse(e.data);
@@ -160,17 +174,17 @@
                 }
             };
 
-            pc.oniceconnectionstatechange = () => console.log('ICE State:', pc.iceConnectionState);
-            pc.onicegatheringstatechange = () => console.log('ICE Gathering State:', pc.iceGatheringState);
-            pc.onsignalingstatechange = () => console.log('Signaling State:', pc.signalingState);
+            pc.oniceconnectionstatechange = () => console.log('WHIP: ICE State:', pc.iceConnectionState);
+            pc.onicegatheringstatechange = () => console.log('WHIP: ICE Gathering State:', pc.iceGatheringState);
+            pc.onsignalingstatechange = () => console.log('WHIP: Signaling State:', pc.signalingState);
 
-            // Create offer
-            console.log('Creating offer...');
+            // Create offer (WHIP client sends SDP offer)
+            console.log('WHIP: Creating offer...');
             const offer = await pc.createOffer();
             await pc.setLocalDescription(offer);
 
             // Wait for ICE gathering to complete
-            console.log('Waiting for ICE gathering...');
+            console.log('WHIP: Waiting for ICE gathering...');
             await new Promise(resolve => {
                 if (pc.iceGatheringState === 'complete') {
                     resolve();
@@ -185,34 +199,44 @@
 
                     // Timeout after 2 seconds to send whatever we have
                     setTimeout(() => {
-                        console.log('ICE gathering timed out, proceeding with gathered candidates');
+                        console.log('WHIP: ICE gathering timed out, proceeding with gathered candidates');
                         pc.removeEventListener('icegatheringstatechange', checkState);
                         resolve();
                     }, 2000);
                 }
             });
-            console.log('ICE gathering complete');
+            console.log('WHIP: ICE gathering complete');
 
-            // Send offer to server
-            console.log('Sending offer to server...');
-            const res = await fetch(`/sessions/${sessionId}/webrtc/offer`, {
+            // WHIP Protocol: POST SDP offer with Content-Type: application/sdp
+            console.log('WHIP: Sending SDP offer to WHIP endpoint...');
+            const res = await fetch(`/sessions/${sessionId}/whip`, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(pc.localDescription)
+                headers: { 'Content-Type': 'application/sdp' },
+                body: pc.localDescription.sdp
             });
 
             if (!res.ok) {
-                console.error('Failed to start WebRTC session:', res.statusText);
-                alert('Failed to start WebRTC session');
+                console.error('WHIP: Failed to start session:', res.statusText);
+                alert('Failed to start WHIP session');
                 return;
             }
 
-            const answer = await res.json();
-            console.log('Received answer:', answer);
-            await pc.setRemoteDescription(answer);
+            // WHIP Protocol: Server responds with 201 Created and SDP answer
+            // Location header contains the resource URL for future PATCH/DELETE
+            const resourceLocation = res.headers.get('Location');
+            console.log('WHIP: Resource created at:', resourceLocation);
+            
+            // Store resource location for cleanup
+            if (!window.whipResources) window.whipResources = {};
+            window.whipResources[sessionId] = resourceLocation;
 
-            // Handle Data Channel (Deprecated: Client initiates now)
-            // pc.ondatachannel = (event) => { ... }
+            const answerSDP = await res.text();
+            const answer = {
+                type: 'answer',
+                sdp: answerSDP
+            };
+            console.log('WHIP: Received SDP answer');
+            await pc.setRemoteDescription(answer);
         }
 
         // Auto-refresh every 10 seconds (less frequent to avoid resetting UI)

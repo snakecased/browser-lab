@@ -111,8 +111,45 @@ start_funnel() {
     # Ensure logs directory exists
     ensure_runtime_dirs
     
-    # Start funnel in background with logs
-    sudo tailscale funnel --https=8443 localhost:8080 > "$FUNNEL_LOG_FILE" 2>&1 &
+    # Check if there are any existing funnel processes
+    EXISTING_FUNNEL=$(pgrep -f "tailscale funnel --https=8443")
+    if [ -n "$EXISTING_FUNNEL" ]; then
+        echo "Note: Found existing Tailscale Funnel process (will clean up after authentication)"
+    fi
+    
+    echo ""
+    echo "========================================="
+    echo "Tailscale Funnel requires sudo access"
+    echo "Please enter your password when prompted"
+    echo "========================================="
+    
+    # Prompt for sudo password with a simple command that requires TTY
+    # This will cache the credentials for the next sudo command
+    if ! sudo echo "✓ Authentication successful"; then
+        echo "✗ Failed to authenticate with sudo"
+        return 1
+    fi
+    
+    # Clean up existing funnel processes if found (now we have sudo credentials)
+    if [ -n "$EXISTING_FUNNEL" ]; then
+        echo ""
+        echo "Found existing Tailscale Funnel process (PID: $EXISTING_FUNNEL)"
+        echo "Stopping it first..."
+        sudo kill $EXISTING_FUNNEL 2>/dev/null
+        sleep 2
+        # Force kill if still running
+        if ps -p $EXISTING_FUNNEL > /dev/null 2>&1; then
+            sudo kill -9 $EXISTING_FUNNEL 2>/dev/null
+            sleep 1
+        fi
+        echo "✓ Cleaned up existing funnel process"
+    fi
+    
+    echo ""
+    echo "Starting funnel process..."
+    
+    # Now start the funnel in background using the cached sudo credentials
+    nohup sudo tailscale funnel --https=8443 localhost:8080 > "$FUNNEL_LOG_FILE" 2>&1 &
     FUNNEL_PID=$!
     
     # Save PID
@@ -123,12 +160,13 @@ start_funnel() {
     
     # Verify it's running
     if ps -p $FUNNEL_PID > /dev/null 2>&1; then
-        echo "Tailscale Funnel started successfully (PID: $FUNNEL_PID)"
-        echo "Funnel logs: $FUNNEL_LOG_FILE"
-        echo "Public URL: https://${TAILSCALE_HOST}:8443"
+        echo "✓ Tailscale Funnel started successfully (PID: $FUNNEL_PID)"
+        echo "  Funnel logs: $FUNNEL_LOG_FILE"
+        echo "  Public URL: https://${TAILSCALE_HOST}:8443"
         return 0
     else
-        echo "Failed to start Tailscale Funnel"
+        echo "✗ Failed to start Tailscale Funnel"
+        echo "  Check the funnel logs at: $FUNNEL_LOG_FILE"
         rm -f "$FUNNEL_PID_FILE"
         return 1
     fi

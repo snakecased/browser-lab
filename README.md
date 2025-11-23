@@ -5,7 +5,7 @@ This project provides a browser server capable of creating and managing headless
 ## Features
 
 *   **Headless Browser Sessions**: Create isolated Chrome browser instances in headless mode.
-*   **WebRTC Streaming**: Stream the browser's content in real-time to a client via WebRTC.
+*   **WHIP Protocol Streaming**: Stream the browser's content in real-time using the standardized WebRTC-HTTP Ingestion Protocol (WHIP).
 *   **Automated Actions**: Perform actions within the browser session, such as scrolling, to demonstrate liveness and interactivity.
 *   **Configurable Host**: Easily configure the host URL for CDP and Preview URLs, useful for deployment in environments like AWS EC2.
 *   **Admin Dashboard**: A simple web-based dashboard to manage sessions and view streams.
@@ -67,11 +67,28 @@ http://localhost:8080
 
 From the dashboard, you can:
 *   Create new browser sessions.
-*   View real-time WebRTC streams of the browser content (streaming starts automatically).
-*   Stop existing sessions.
+*   View real-time streams of the browser content using WHIP protocol (streaming starts automatically).
+*   Stop existing sessions and terminate WHIP resources.
 *   Access the Chrome DevTools Protocol (CDP) URL for advanced debugging.
 
-### Running Tests
+### API Endpoints
+
+### Session Management
+*   `POST /sessions` - Create a new browser session
+*   `GET /sessions` - List all active sessions
+*   `DELETE /sessions/{id}` - Stop a browser session
+*   `WS /sessions/{id}/cdp` - WebSocket proxy to Chrome DevTools Protocol
+
+### WHIP Protocol (Media Ingestion)
+*   `POST /sessions/{id}/whip` - Create a WHIP resource (send SDP offer, receive SDP answer)
+    *   Content-Type: `application/sdp`
+    *   Returns: 201 Created with `Location` header containing the resource URL
+*   `DELETE /sessions/{id}/whip/{resourceId}` - Terminate a WHIP session
+*   `PATCH /sessions/{id}/whip/{resourceId}` - Update ICE candidates (trickle ICE, optional)
+
+The WHIP implementation follows the [WebRTC-HTTP Ingestion Protocol (WHIP)](https://datatracker.ietf.org/doc/draft-ietf-wish-whip/) specification for standardized media publishing.
+
+## Running Tests
 
 The project includes integration tests that verify the server's functionality, including session creation, CDP connectivity, and automated browser actions.
 
@@ -91,11 +108,11 @@ This will:
 ## Project Structure
 
 *   `main.go`: Main server logic, API endpoints, and session management.
-*   `webrtc.go`: Handles WebRTC signaling and streaming of browser content.
+*   `whip.go`: Implements the WHIP (WebRTC-HTTP Ingestion Protocol) server for standardized media ingestion.
 *   `session/manager.go`: Manages the lifecycle of browser sessions.
 *   `session/session.go`: Defines a single browser session, including launching Chrome.
 *   `proxy/proxy.go`: Handles CDP proxying.
-*   `dashboard/index.html`: The web-based admin interface.
+*   `dashboard/index.html`: The web-based admin interface with WHIP client implementation.
 *   `test/`: Contains integration tests.
 
 ## Development Notes
@@ -103,4 +120,8 @@ This will:
 *   **Headless Mode**: Chrome is launched in `--headless=new` mode by default.
 *   **Automated Scrolling**: Each browser session will automatically scroll to demonstrate active streaming.
 *   **CDP Communication**: The server communicates with Chrome via the Chrome DevTools Protocol to initiate screencasting and perform actions.
-*   **WebRTC**: Uses Pion WebRTC for establishing peer-to-peer connections and streaming video frames.
+*   **WHIP Protocol**: Implements the WebRTC-HTTP Ingestion Protocol (WHIP) standard for media ingestion, providing:
+    *   Standardized HTTP REST API for WebRTC session establishment
+    *   POST with SDP offer to create a new WHIP resource (returns 201 Created with Location header)
+    *   DELETE to terminate WHIP sessions
+    *   Uses Pion WebRTC for establishing peer-to-peer connections and streaming video frames via data channels
